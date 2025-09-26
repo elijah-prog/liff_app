@@ -55,7 +55,7 @@
         };
 
         log("Sending attribution...");
-        const res = await fetch("/api/track.js", {   // <--- safe proxy
+        await fetch("/api/track.js", { 
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
