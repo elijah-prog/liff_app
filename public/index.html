@@ -1,74 +1,80 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>LIFF Attribution</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 16px; }
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; }
     #status { white-space: pre-wrap; }
     .ok { color: green; }
-    .err { color: red; }
+    .err { color: #b00020; }
   </style>
 </head>
 <body>
-  <h2>LIFF Attribution Test</h2>
-  <div id="status">Initializing...</div>
+  <h2>LIFF Attribution</h2>
+  <div id="status">Starting...</div>
 
   <script>
-    const LIFF_ID = "2008170245-Bv4ryW6X";  // <-- replace with your LIFF ID
-    const OA_LINK = "https://line.me/R/ti/p/@eleveniclinic"; // deep link to OA chat
+    // ===== CONFIG =====
+    const LIFF_ID = "2008170245-Bv4ryW6X";  // your single LIFF ID
+    const OA_LINK = "https://line.me/R/ti/p/@eleveniclinic"; // deep link to your OA
+    const API_URL = "/api/track.js"; // your Vercel function that sends to Make
+    // ==================
 
     const statusEl = document.getElementById('status');
-    function log(msg, cls) {
-      statusEl.innerHTML += "\n" + msg;
-      if (cls) statusEl.className = cls;
-    }
+    function log(msg, cls){ statusEl.innerHTML += "\n" + msg; if(cls) statusEl.className = cls; }
 
-    (async function main(){
+    (async function main() {
       try {
-        log("Initializing LIFF...");
+        log('Initializing LIFF...');
         await liff.init({ liffId: LIFF_ID });
-        log("✅ LIFF initialized", "ok");
+        log('✅ LIFF init OK', 'ok');
 
         if (!liff.isLoggedIn()) {
-          log("Redirecting to LINE login...");
+          log('Not logged in — redirecting to LINE login...');
           liff.login();
           return;
         }
 
+        log('Logged in — getting profile...');
         const profile = await liff.getProfile();
-        log(`Hello ${profile.displayName} (${profile.userId})`, "ok");
+        log('✅ Hello ' + profile.displayName + ' (' + profile.userId + ')', 'ok');
 
-        // grab UTM params
+        // Read UTM params from Vercel URL
         const params = new URLSearchParams(window.location.search);
-        const utm_source = params.get("utm_source") || "";
-        const utm_campaign = params.get("utm_campaign") || "";
+        const utm_source = params.get('utm_source') || "";
+        const utm_campaign = params.get('utm_campaign') || "";
 
-        // prepare payload
+        // Payload for Make webhook
         const payload = {
           userId: profile.userId,
           displayName: profile.displayName,
           utm_source,
           utm_campaign,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          message_received: "NO"
         };
 
-        log("Sending attribution...");
-        const res = await fetch("/api/track.js", { 
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        log('Sending attribution to server...');
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error("track failed: " + res.status);
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error('track failed: ' + res.status + ' ' + txt);
+        }
 
-        log("✅ Sent. Redirecting to OA...", "ok");
-        setTimeout(()=>{ window.location.href = OA_LINK; }, 1500);
+        log('✅ Sent to server. Redirecting to OA chat in 1s...', 'ok');
+        setTimeout(()=>{ window.location.href = OA_LINK; }, 1000);
 
       } catch (err) {
         console.error(err);
-        log("❌ " + (err.message || err), "err");
+        log('❌ Error: ' + (err.message || err), 'err');
       }
     })();
   </script>
