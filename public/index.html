@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>LIFF Attribution</title>
+  <title>Eleven i Clinic</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
     body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; }
@@ -13,68 +13,44 @@
   </style>
 </head>
 <body>
-  <h2>LIFF Attribution</h2>
-  <div id="status">Starting...</div>
-
   <script>
-    // ===== CONFIG =====
-    const LIFF_ID = "2008170245-Bv4ryW6X";  // your single LIFF ID
-    const OA_LINK = "https://line.me/R/ti/p/@eleveniclinic"; // deep link to your OA
-    const API_URL = "/api/track.js"; // your Vercel function that sends to Make
-    // ==================
+    (async function(){
+      const LIFF_ID = "2008170245-Bv4ryW6X";
+      const OA_LINK = "https://line.me/R/ti/p/@eleveniclinic";
+      const API_URL = "/api/track.js";
 
-    const statusEl = document.getElementById('status');
-    function log(msg, cls){ statusEl.innerHTML += "\n" + msg; if(cls) statusEl.className = cls; }
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn()) liff.login();
 
-    (async function main() {
-      try {
-        log('Initializing LIFF...');
-        await liff.init({ liffId: LIFF_ID });
-        log('✅ LIFF init OK', 'ok');
+      const profile = await liff.getProfile();
+      const params = new URLSearchParams(window.location.search);
+      const utm_source = params.get("utm_source") || "";
+      const utm_campaign = params.get("utm_campaign") || "";
 
-        if (!liff.isLoggedIn()) {
-          log('Not logged in — redirecting to LINE login...');
-          liff.login();
-          return;
-        }
+      const payload = {
+        userId: profile.userId,
+        displayName: profile.displayName,
+        utm_source,
+        utm_campaign,
+        timestamp: formatDate(new Date()),
+        message_received: "NO"
+      };
 
-        log('Logged in — getting profile...');
-        const profile = await liff.getProfile();
-        log('✅ Hello ' + profile.displayName + ' (' + profile.userId + ')', 'ok');
+      // send to Make webhook (does not block redirect)
+      fetch(API_URL, { method: "POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) })
+        .catch(e => console.error(e));
 
-        // Read UTM params from Vercel URL
-        const params = new URLSearchParams(window.location.search);
-        const utm_source = params.get('utm_source') || "";
-        const utm_campaign = params.get('utm_campaign') || "";
+      // seamless redirect
+      window.location.href = OA_LINK;
 
-        // Payload for Make webhook
-        const payload = {
-          userId: profile.userId,
-          displayName: profile.displayName,
-          utm_source,
-          utm_campaign,
-          timestamp: new Date().toISOString(),
-          message_received: "NO"
-        };
-
-        log('Sending attribution to server...');
-        const res = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) {
-          const txt = await res.text();
-          throw new Error('track failed: ' + res.status + ' ' + txt);
-        }
-
-        log('✅ Sent to server. Redirecting to OA chat in 1s...', 'ok');
-        setTimeout(()=>{ window.location.href = OA_LINK; }, 1000);
-
-      } catch (err) {
-        console.error(err);
-        log('❌ Error: ' + (err.message || err), 'err');
+      function formatDate(d){
+        const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+        const day = d.getDate().toString().padStart(2,'0');
+        const month = months[d.getMonth()];
+        const year = d.getFullYear().toString().slice(-2);
+        const hours = d.getHours().toString().padStart(2,'0');
+        const minutes = d.getMinutes().toString().padStart(2,'0');
+        return `${day} ${month} ${year} ${hours}:${minutes}`;
       }
     })();
   </script>
