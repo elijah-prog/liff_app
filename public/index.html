@@ -2,34 +2,75 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>LIFF Test</title>
+  <title>LIFF Attribution</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 16px; }
+    #status { white-space: pre-wrap; }
+    .ok { color: green; }
+    .err { color: red; }
+  </style>
 </head>
 <body>
-  <h1>LIFF Attribution Test</h1>
-  <p id="status">Initializing...</p>
+  <h2>LIFF Attribution Test</h2>
+  <div id="status">Initializing...</div>
 
   <script>
-    async function main() {
-      try {
-        await liff.init({ liffId: "YOUR_LIFF_ID_HERE" });
-        document.getElementById("status").textContent = "LIFF initialized ✅";
+    const LIFF_ID = "2008170245-Bv4ryW6X";  // <-- replace with your LIFF ID
+    const OA_LINK = "https://line.me/R/ti/p/@eleveniclinic"; // deep link to OA chat
 
-        if (!liff.isLoggedIn()) {
-          liff.login();
-        } else {
-          const profile = await liff.getProfile();
-          document.getElementById("status").textContent =
-            `Hello, ${profile.displayName}`;
-        }
-      } catch (err) {
-        document.getElementById("status").textContent =
-          "LIFF init failed: " + err;
-        console.error(err);
-      }
+    const statusEl = document.getElementById('status');
+    function log(msg, cls) {
+      statusEl.innerHTML += "\n" + msg;
+      if (cls) statusEl.className = cls;
     }
 
-    main();
+    (async function main(){
+      try {
+        log("Initializing LIFF...");
+        await liff.init({ liffId: LIFF_ID });
+        log("✅ LIFF initialized", "ok");
+
+        if (!liff.isLoggedIn()) {
+          log("Redirecting to LINE login...");
+          liff.login();
+          return;
+        }
+
+        const profile = await liff.getProfile();
+        log(`Hello ${profile.displayName} (${profile.userId})`, "ok");
+
+        // grab UTM params
+        const params = new URLSearchParams(window.location.search);
+        const utm_source = params.get("utm_source") || "";
+        const utm_campaign = params.get("utm_campaign") || "";
+
+        // prepare payload
+        const payload = {
+          userId: profile.userId,
+          displayName: profile.displayName,
+          utm_source,
+          utm_campaign,
+          timestamp: new Date().toISOString()
+        };
+
+        log("Sending attribution...");
+        const res = await fetch("/api/track", {   // <--- safe proxy
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("track failed: " + res.status);
+
+        log("✅ Sent. Redirecting to OA...", "ok");
+        setTimeout(()=>{ window.location.href = OA_LINK; }, 1500);
+
+      } catch (err) {
+        console.error(err);
+        log("❌ " + (err.message || err), "err");
+      }
+    })();
   </script>
 </body>
 </html>
